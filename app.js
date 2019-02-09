@@ -38,24 +38,27 @@ function broadcast(data, except) {
 
 ws.on('request', (request) => {
   const connection = request.accept(null, request.origin);
-  const clientKey = connectionIndex;
+  const clientKey = connectionIndex.toString();
   connectionIndex++;
   clients[clientKey] = connection;
 
   console.log('New client', clientKey);
 
-
   state.onlineCount++;
 
-  // Initial state for client
-  setTimeout(() => {
-    const data = {
-      type: 'init',
-      ...state,
-    };
+  broadcast({
+    type: 'onlineCount',
+    onlineCount: state.onlineCount,
+  });
 
-    connection.sendUTF(JSON.stringify(data));
-  }, 1);
+  const sendClients = {};
+
+  // Initial state for client
+  connection.sendUTF(JSON.stringify({
+    ...state,
+    sendClients,
+    type: 'init',
+  }));
 
   connection.on('message', (message) => {
     if (message.type === 'utf8') {
@@ -63,22 +66,33 @@ ws.on('request', (request) => {
 
       console.log(data);
 
-      state.time = data.time;
-
       if (data.type === 'pause') {
         state.pause = true;
+        state.time = data.time;
 
         broadcast({ type: 'pause', time: state.time }, clientKey);
       }
 
       if (data.type === 'play') {
         state.pause = false;
+        state.time = data.time;
 
         broadcast({ type: 'play', time: state.time }, clientKey);
       }
 
       if (data.type === 'time') {
+        state.time = data.time;
         broadcast({ type: 'time', time: state.time }, clientKey);
+      }
+
+      if (data.type === 'ready') {
+        clients[clientKey].state = 'ready';
+        broadcast({ type: 'userState', id: clientKey, state: clients[clientKey].state });
+      }
+
+      if (data.type === 'loading') {
+        clients[clientKey].state = 'loading';
+        broadcast({ type: 'userState', id: clientKey, state: clients[clientKey].state });
       }
     }
   });
@@ -90,6 +104,11 @@ ws.on('request', (request) => {
     state.onlineCount--;
 
     console.log(`${state.onlineCount} clients`);
+
+    broadcast({
+      type: 'onlineCount',
+      onlineCount: state.onlineCount,
+    });
   });
 });
 

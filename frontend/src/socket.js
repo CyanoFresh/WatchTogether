@@ -6,7 +6,7 @@ class Socket extends EventEmitter {
   constructor() {
     super();
 
-    this.connection = new WebSocket('ws://localhost:5050');
+    this.connection = new WebSocket('ws://192.168.1.76:5050');
     this.connection.onopen = () => {
       console.log('Socket opened');
       this.emit('open');
@@ -22,7 +22,7 @@ class Socket extends EventEmitter {
     this.connection.onmessage = (e) => {
       const data = JSON.parse(e.data);
 
-      console.log('Socket message', data);
+      console.log('→', data);
 
       this.emit('message', data);
     };
@@ -34,6 +34,7 @@ class Socket extends EventEmitter {
 
   send(data) {
     if (this.isOpen()) {
+      console.log('←', data);
       this.connection.send(JSON.stringify(data));
     }
   }

@@ -35,7 +35,7 @@ class OnlineCount extends Component {
 
     return (
       <div className="OnlineCount">
-        {onlineCount}
+        <div>Online: {onlineCount}</div>
       </div>
     );
   }

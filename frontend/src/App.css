@@ -17,8 +17,9 @@ body {
 }
 
 .OnlineCount {
+  margin: 20px;
   padding: 10px 16px;
   background: #363636;
   display: inline-block;
-  border-radius: 100%;
+  border-radius: 5px;
 }
