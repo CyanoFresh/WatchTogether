@@ -1,5 +1,3 @@
-const express = require('express');
-const logger = require('morgan');
 const WebSocketServer = require('websocket').server;
 const http = require('http');
 const uniqid = require('uniqid');
@@ -170,10 +168,3 @@ function loadFilms() {
 }
 
 loadFilms();
-
-const app = express();
-
-app.use(logger('dev'));
-app.use(express.json());
-
-module.exports = app;
