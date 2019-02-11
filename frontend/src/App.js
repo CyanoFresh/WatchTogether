@@ -64,6 +64,7 @@ class App extends Component {
       },
       clickToPlay: false,
       invertTime: false,
+      settings: [],
     });
 
     this.player.on('seeked', (e) => {
