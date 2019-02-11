@@ -1,9 +1,7 @@
 import React, { Component } from 'react';
 import Plyr from 'plyr';
 import socket from './socket';
-// import 'video.js/dist/video-js.css';
 import OnlineCount from './OnlineCount';
-import Hls from 'hls.js';
 
 import 'plyr/dist/plyr.css';
 import './App.css';
@@ -11,6 +9,9 @@ import './App.css';
 // let pauseAfterSeek = true;
 
 class App extends Component {
+  state = {
+    films: [],
+  };
   player = null;
   videoRef = null;
   currentState = {};
@@ -111,19 +112,6 @@ class App extends Component {
       }
     });
 
-    if (Hls.isSupported()) {
-      console.log("hello hls.js!");
-    }
-    //
-    if (!Hls.isSupported()) {
-      this.videoRef.current.src = 'http://192.168.1.230/hls/stream.m3u8';
-    } else {
-      // For more Hls.js options, see https://github.com/dailymotion/hls.js
-      const hls = new Hls();
-      hls.loadSource('http://192.168.1.230/hls/stream.m3u8');
-      hls.attachMedia(this.videoRef.current);
-    }
-
     // Socket
     socket.on('message', this.onMessage);
     socket.on('close', () => {
@@ -149,6 +137,23 @@ class App extends Component {
   onMessage = (data) => {
     if (data.type === 'init') {
       this.currentState = data;
+
+      this.setState({
+        films: data.films,
+      });
+
+      if (data.film) {
+        this.player.source = {
+          type: 'video',
+          title: data.film.name,
+          sources: [
+            {
+              src: data.film.url,
+              type: 'video/mp4',
+            },
+          ],
+        };
+      }
     }
 
     if (data.type === 'time') {
@@ -172,6 +177,20 @@ class App extends Component {
         this.seek(data.time);
       }
     }
+
+    if (data.type === 'selectFilm') {
+      this.player.pause();
+      this.player.source = {
+        type: 'video',
+        title: data.film.name,
+        sources: [
+          {
+            src: data.film.url,
+            type: 'video/mp4',
+          },
+        ],
+      };
+    }
   };
 
   componentWillUnmount() {
@@ -186,11 +205,29 @@ class App extends Component {
     }
   }
 
+  onSelect = (e) => {
+    socket.send({
+      type: 'selectFilm',
+      filmId: e.target.value,
+    });
+  };
+
   render() {
+    const { films } = this.state;
+
     return (
       <div className="App">
-        <video id="player" src="http://192.168.1.230/hls/stream.m3u8" ref={this.videoRef}/>
+        <video id="player" ref={this.videoRef}/>
+
         <OnlineCount/>
+
+        <select onChange={this.onSelect} className="FilmSelect">
+          <option>-- choose film --</option>
+          {films.map(film =>
+            <option key={film.id} value={film.id}>{film.name}</option>,
+          )}
+        </select>
+
         <div id="msg"/>
       </div>
     );

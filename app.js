@@ -2,6 +2,8 @@ const express = require('express');
 const logger = require('morgan');
 const WebSocketServer = require('websocket').server;
 const http = require('http');
+const uniqid = require('uniqid');
+const fs = require('fs').promises;
 const config = require('./config');
 
 const server = http.createServer();
@@ -10,8 +12,10 @@ const state = {
   time: 0,
   pause: true,
   onlineCount: 0,
+  film: null,
 };
 const clients = {};
+let films = [];
 let connectionIndex = 1;
 
 server.listen(config.wsPort, () => console.log((new Date()) + ` WebSocket Server is listening on port ${config.wsPort}`));
@@ -51,13 +55,11 @@ ws.on('request', (request) => {
     onlineCount: state.onlineCount,
   });
 
-  const sendClients = {};
-
   // Initial state for client
   connection.sendUTF(JSON.stringify({
-    ...state,
-    sendClients,
     type: 'init',
+    films,
+    ...state,
   }));
 
   connection.on('message', (message) => {
@@ -94,6 +96,24 @@ ws.on('request', (request) => {
         clients[clientKey].state = 'loading';
         broadcast({ type: 'userState', id: clientKey, state: clients[clientKey].state });
       }
+
+      if (data.type === 'selectFilm') {
+        const film = films.find(film => film.id === data.filmId);
+
+        if (!film) {
+          console.error('Film not found');
+          return;
+        }
+
+        state.film = film;
+        state.time = 0;
+        state.pause = true;
+
+        broadcast({
+          type: 'selectFilm',
+          film: film,
+        });
+      }
     }
   });
 
@@ -111,6 +131,28 @@ ws.on('request', (request) => {
     });
   });
 });
+
+function getFilmList() {
+  fs.readdir(config.filmsDirPath)
+    .then(results => {
+      console.log(results);
+
+      results.forEach(fileName => {
+        films.push({
+          id: uniqid(),
+          name: fileName,
+          url: `${config.filmsDirUrl}/${fileName}`,
+        });
+      });
+    })
+    .catch(err => {
+      console.error(err);
+
+      process.exit();
+    });
+}
+
+getFilmList();
 
 const app = express();
 
