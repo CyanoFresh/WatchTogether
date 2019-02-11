@@ -6,8 +6,6 @@ import OnlineCount from './OnlineCount';
 import 'plyr/dist/plyr.css';
 import './App.css';
 
-// let pauseAfterSeek = true;
-
 class App extends Component {
   state = {
     films: [],
@@ -19,6 +17,7 @@ class App extends Component {
 
   constructor(props) {
     super(props);
+
     this.videoRef = React.createRef();
   }
 
@@ -47,14 +46,12 @@ class App extends Component {
           }
         },
         seek: (e) => {
-          console.log('player seek listener', e.target);
-
-          console.log('Changing time...');
+          console.log('Seek. Changing time...');
 
           this.player.currentTime = e.target.valueAsNumber / 100 * this.player.duration;
 
           this.player.once('canplaythrough', () => {
-            console.log('Time changed. Sending to others...');
+            console.log('Time changed. Pause to send to the server...');
 
             this.player.pause();
 
@@ -71,72 +68,48 @@ class App extends Component {
 
     this.player.on('seeked', (e) => {
       console.log('seeked');
-      // if (pauseAfterSeek)
-      //   this.player.pause();
     });
 
     this.player.on('playing', (e) => {
-      console.log('playing event');
-    });
-
-    this.player.on('loadeddata', (e) => {
-      console.log('loadeddata event');
-    });
-
-    this.player.on('canplay', (e) => {
-      console.log('canplay event');
+      console.log('playing e');
     });
 
     this.player.on('canplaythrough', (e) => {
-      console.log('canplaythrough event');
+      console.log('canplaythrough e');
     });
 
     this.player.on('waiting', (e) => {
-      console.log('waiting event');
+      console.log('waiting e');
     });
 
     this.player.on('pause', (e) => {
-      console.log('pause event');
-    });
-
-    this.player.on('ready', (e) => {
-      console.log('ready event');
-
-      setTimeout(() => {
-        this.seek(this.currentState.time);
-      }, 10);
-
-      if (this.currentState.pause) {
-        this.player.pause();
-      } else {
-        this.player.play();
-      }
+      console.log('pause e');
     });
 
     // Socket
     socket.on('message', this.onMessage);
-    socket.on('close', () => {
-      this.setState({
-        error: 'Connection error',
-      });
-    });
-    socket.on('error', (e) => {
-      this.setState({
-        error: 'Websocket error: ' + e.message,
-      });
-    });
+    socket.on('close', () => this.setState({
+      error: 'Connection error',
+    }));
+    socket.on('error', (e) => this.setState({
+      error: 'Websocket error: ' + e.message,
+    }));
   }
 
-  seek(time) {
+  seek(time, onReady) {
     socket.send({
       type: 'loading',
     });
 
     this.player.currentTime = time;
 
-    this.player.once('canplaythrough', () => socket.send({
-      type: 'ready',
-    }));
+    this.player.once('canplaythrough', () => {
+      socket.send({
+        type: 'ready',
+      });
+
+      if (onReady) onReady();
+    });
   }
 
   onMessage = (data) => {
@@ -148,6 +121,8 @@ class App extends Component {
       });
 
       if (data.film) {
+        console.log('Loading initial film...');
+
         this.player.source = {
           type: 'video',
           title: data.film.name,
@@ -158,6 +133,42 @@ class App extends Component {
             },
           ],
         };
+
+        this.player.once('ready', (e) => {
+          console.log('once ready e');
+
+          this.player.once('canplaythrough', () => {
+            console.log('first');
+
+            this.player.once('canplaythrough', () => {
+              console.log('second');
+
+              setTimeout(() => {
+                console.log('Seeking to', this.currentState.time);
+
+                this.seek(this.currentState.time, () => this.seek(this.currentState.time));
+              }, 10);
+
+              if (this.currentState.pause) {
+                this.player.pause();
+              } else {
+                this.player.play();
+              }
+            });
+          });
+
+          // setTimeout(() => {
+          //   console.log('Seeking to', this.currentState.time);
+          //
+          //   this.seek(this.currentState.time);
+          // }, 100);
+
+          // if (this.currentState.pause) {
+          //   this.player.pause();
+          // } else {
+          //   this.player.play();
+          // }
+        });
       }
     }
 
@@ -184,7 +195,6 @@ class App extends Component {
     }
 
     if (data.type === 'selectFilm') {
-      this.player.pause();
       this.player.source = {
         type: 'video',
         title: data.film.name,
@@ -195,20 +205,24 @@ class App extends Component {
           },
         ],
       };
+
+      this.player.once('ready', (e) => {
+        console.log('once ready e');
+
+        setTimeout(() => {
+          console.log('Seeking to', this.currentState.time);
+
+          this.seek(this.currentState.time);
+        }, 10);
+
+        if (this.currentState.pause) {
+          this.player.pause();
+        } else {
+          this.player.play();
+        }
+      });
     }
   };
-
-  componentWillUnmount() {
-    if (this.player) {
-      // this.player.dispose();
-    }
-
-    socket.removeListener('message', this.onMessage);
-
-    if (socket.isOpen()) {
-      socket.close();
-    }
-  }
 
   onSelect = (e) => {
     socket.send({
@@ -218,7 +232,7 @@ class App extends Component {
   };
 
   render() {
-    const { films } = this.state;
+    const { films, error } = this.state;
 
     return (
       <div className="App">
@@ -227,13 +241,15 @@ class App extends Component {
         <OnlineCount/>
 
         <select onChange={this.onSelect} className="FilmSelect">
-          <option>-- choose film --</option>
+          <option>-- Choose Film --</option>
           {films.map(film =>
             <option key={film.id} value={film.id}>{film.name}</option>,
           )}
         </select>
 
-        <div id="msg"/>
+        <div id="msg">
+          {error}
+        </div>
       </div>
     );
   }
