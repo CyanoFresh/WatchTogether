@@ -11,6 +11,7 @@ import './App.css';
 class App extends Component {
   state = {
     films: [],
+    error: null,
   };
   player = null;
   videoRef = null;
@@ -115,10 +116,14 @@ class App extends Component {
     // Socket
     socket.on('message', this.onMessage);
     socket.on('close', () => {
-      document.body.innerHTML = 'connection closed';
+      this.setState({
+        error: 'Connection error',
+      });
     });
     socket.on('error', (e) => {
-      document.body.innerHTML = e;
+      this.setState({
+        error: 'Websocket error: ' + e.message,
+      });
     });
   }
 
