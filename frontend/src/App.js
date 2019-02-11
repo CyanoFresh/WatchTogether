@@ -5,10 +5,12 @@ import OnlineCount from './OnlineCount';
 
 import 'plyr/dist/plyr.css';
 import './App.css';
+import FilmSelect from './FilmSelect';
 
 class App extends Component {
   state = {
     films: [],
+    film: null,
     error: null,
   };
   player = null;
@@ -28,7 +30,7 @@ class App extends Component {
           if (this.player.paused) {
             console.log('play listener');
 
-            this.player.play();
+            this.play();
 
             socket.send({
               type: 'play',
@@ -113,16 +115,99 @@ class App extends Component {
     });
   }
 
-  onMessage = (data) => {
-    if (data.type === 'init') {
-      this.currentState = data;
+  play() {
+    const playPromise = this.player.play();
 
-      this.setState({
-        films: data.films,
+    if (playPromise !== undefined) {
+      playPromise.catch(err => {
+        console.error('play err', err);
+
+        this.setState({
+          error: err.message,
+        });
       });
+    }
+  }
 
-      if (data.film) {
-        console.log('Loading initial film...');
+  onMessage = (data) => {
+    switch (data.type) {
+      case 'init':
+        this.currentState = data;
+
+        const newState = {
+          films: data.films,
+        };
+
+        if (data.film) {
+          console.log('Loading initial film...');
+
+          newState.film = data.film;
+
+          this.player.source = {
+            type: 'video',
+            title: data.film.name,
+            sources: [
+              {
+                src: data.film.url,
+                type: 'video/mp4',
+              },
+            ],
+          };
+
+          this.player.once('ready', (e) => {
+            console.log('once ready e');
+
+            this.player.once('canplaythrough', () => {
+              console.log('first');
+
+              this.player.once('canplaythrough', () => {
+                console.log('second');
+
+                setTimeout(() => {
+                  console.log('Seeking to', this.currentState.time);
+
+                  this.seek(this.currentState.time, () => this.seek(this.currentState.time));
+                }, 10);
+
+                if (this.currentState.pause) {
+                  this.player.pause();
+                } else {
+                  this.play();
+                }
+              });
+            });
+          });
+        }
+
+        this.setState(newState);
+
+        break;
+      case 'time':
+        this.player.pause();
+
+        this.seek(data.time);
+
+        break;
+      case 'pause':
+        this.player.pause();
+
+        if (Math.abs(this.player.currentTime - data.time) > 1) {
+          this.seek(data.time);
+        }
+
+        break;
+      case 'play':
+        this.play();
+
+        if (Math.abs(this.player.currentTime - data.time) > 1) {
+          this.seek(data.time);
+        }
+
+        break;
+      case 'selectFilm':
+        this.setState({
+          film: data.film,
+        });
 
         this.player.source = {
           type: 'video',
@@ -138,90 +223,28 @@ class App extends Component {
         this.player.once('ready', (e) => {
           console.log('once ready e');
 
-          this.player.once('canplaythrough', () => {
-            console.log('first');
+          setTimeout(() => {
+            console.log('Seeking to', this.currentState.time);
 
-            this.player.once('canplaythrough', () => {
-              console.log('second');
+            this.seek(this.currentState.time);
+          }, 10);
 
-              setTimeout(() => {
-                console.log('Seeking to', this.currentState.time);
-
-                this.seek(this.currentState.time, () => this.seek(this.currentState.time));
-              }, 10);
-
-              if (this.currentState.pause) {
-                this.player.pause();
-              } else {
-                this.player.play();
-              }
-            });
-          });
-
-          // setTimeout(() => {
-          //   console.log('Seeking to', this.currentState.time);
-          //
-          //   this.seek(this.currentState.time);
-          // }, 100);
-
-          // if (this.currentState.pause) {
-          //   this.player.pause();
-          // } else {
-          //   this.player.play();
-          // }
+          if (this.currentState.pause) {
+            this.player.pause();
+          } else {
+            this.play();
+          }
         });
-      }
-    }
 
-    if (data.type === 'time') {
-      this.player.pause();
+        break;
+      case 'films':
+        this.setState({
+          films: data.films,
+        });
 
-      this.seek(data.time);
-    }
-
-    if (data.type === 'pause') {
-      this.player.pause();
-
-      if (Math.abs(this.player.currentTime - data.time) > 1) {
-        this.seek(data.time);
-      }
-    }
-
-    if (data.type === 'play') {
-      this.player.play();
-
-      if (Math.abs(this.player.currentTime - data.time) > 1) {
-        this.seek(data.time);
-      }
-    }
-
-    if (data.type === 'selectFilm') {
-      this.player.source = {
-        type: 'video',
-        title: data.film.name,
-        sources: [
-          {
-            src: data.film.url,
-            type: 'video/mp4',
-          },
-        ],
-      };
-
-      this.player.once('ready', (e) => {
-        console.log('once ready e');
-
-        setTimeout(() => {
-          console.log('Seeking to', this.currentState.time);
-
-          this.seek(this.currentState.time);
-        }, 10);
-
-        if (this.currentState.pause) {
-          this.player.pause();
-        } else {
-          this.player.play();
-        }
-      });
+        break;
+      default:
+        break;
     }
   };
 
@@ -232,8 +255,14 @@ class App extends Component {
     });
   };
 
+  onReload = () => {
+    socket.send({
+      type: 'loadFilms',
+    });
+  };
+
   render() {
-    const { films, error } = this.state;
+    const { film, films, error } = this.state;
 
     return (
       <div className="App">
@@ -241,12 +270,7 @@ class App extends Component {
 
         <OnlineCount/>
 
-        <select onChange={this.onSelect} className="FilmSelect">
-          <option>-- Choose Film --</option>
-          {films.map(film =>
-            <option key={film.id} value={film.id}>{film.name}</option>,
-          )}
-        </select>
+        <FilmSelect onChange={this.onSelect} onReload={this.onReload} films={films} film={film}/>
 
         <div id="msg">
           {error}

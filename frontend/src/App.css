@@ -27,9 +27,36 @@ body {
 .FilmSelect {
   display: inline-block;
   padding: 10px;
-  border: 0;
   background: #363636;
   color: #fff;
   border-radius: 5px;
+}
+
+.FilmSelect-select {
+  border: 0;
+  background: rgba(255,255,255,0.1);
+  padding: 5px 10px;
+  border-radius: 5px;
+  margin-right: 10px;
+  color: #fff;
   outline: none;
+}
+
+
+.FilmSelect-select option {
+  background: rgba(255,255,255,0.1);
+  padding: 5px 10px;
+  border-radius: 5px;
+  margin-right: 10px;
+  color: #000;
+  outline: none;
+}
+
+.FilmSelect button {
+  border: 0;
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+  outline: none;
+  padding: 5px 10px;
+  cursor: pointer;
 }

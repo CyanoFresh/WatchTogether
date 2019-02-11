@@ -114,6 +114,17 @@ ws.on('request', (request) => {
           film: film,
         });
       }
+
+      if (data.type === 'loadFilms') {
+        loadFilms().then(() => {
+          console.log('film list updated', films);
+
+          broadcast({
+            type: 'films',
+            films,
+          });
+        });
+      }
     }
   });
 
@@ -132,18 +143,24 @@ ws.on('request', (request) => {
   });
 });
 
-function getFilmList() {
-  fs.readdir(config.filmsDirPath)
+function loadFilms() {
+  return fs.readdir(config.filmsDirPath)
     .then(results => {
       console.log(results);
 
+      const newFilms = [];
+
       results.forEach(fileName => {
-        films.push({
+        newFilms.push({
           id: uniqid(),
           name: fileName,
           url: `${config.filmsDirUrl}/${fileName}`,
         });
       });
+
+      films = newFilms;
+
+      return films;
     })
     .catch(err => {
       console.error(err);
@@ -152,7 +169,7 @@ function getFilmList() {
     });
 }
 
-getFilmList();
+loadFilms();
 
 const app = express();
 
